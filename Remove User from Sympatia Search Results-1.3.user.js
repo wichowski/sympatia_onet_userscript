@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Remove User from Sympatia Search Results
 // @namespace    http://tampermonkey.net/
-// @version      1.3
-// @description  Remove user from search results on Sympatia and store the profile name in cookies incrementally
+// @version      1.5
+// @description  Remove user from search results on Sympatia and store the profile name in local storage incrementally
 // @author       ChatGPT
 // @match        https://sympatia.onet.pl/*
 // @grant        none
@@ -11,22 +11,15 @@
 (function() {
     'use strict';
 
-    // Function to get cookies
-    function getCookie(name) {
-        let match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-        if (match) return JSON.parse(decodeURIComponent(match[2]));
-        return [];
+    // Function to get data from local storage
+    function getLocalStorageData(key) {
+        let data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : [];
     }
 
-    // Function to set cookies
-    function setCookie(name, value, days) {
-        let expires = "";
-        if (days) {
-            let date = new Date();
-            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-            expires = "; expires=" + date.toUTCString();
-        }
-        document.cookie = name + "=" + (encodeURIComponent(JSON.stringify(value)) || "")  + expires + "; path=/";
+    // Function to set data in local storage
+    function setLocalStorageData(key, value) {
+        localStorage.setItem(key, JSON.stringify(value));
     }
 
     // Function to extract profile name from href
@@ -37,10 +30,12 @@
 
     // Function to add "X" button to user cards
     function addRemoveButtons() {
-        const userCardsContainer = document.evaluate('//*[@id="__next"]/div[3]/div/div[2]/div[2]/div/div[2]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        let userCardsContainer = document.evaluate('//*[@id="__next"]/div[3]/div/div[2]/div[2]/div/div[2]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
         if (!userCardsContainer) userCardsContainer = document.evaluate('//*[@id="__next"]/div[3]/div/div[2]/div[2]/div[1]/div[2]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
 
-        const removedUsers = getCookie('removedUsers');
+        if (!userCardsContainer) return;
+
+        const removedUsers = getLocalStorageData('removedUsers');
         const userCards = userCardsContainer.getElementsByTagName('a');
 
         for (let card of userCards) {
@@ -75,7 +70,7 @@
                     card.style.display = 'none';
                     if (profileName && !removedUsers.includes(profileName)) {
                         removedUsers.push(profileName);
-                        setCookie('removedUsers', removedUsers, 365);
+                        setLocalStorageData('removedUsers', removedUsers);
                     }
                 });
 
@@ -87,8 +82,10 @@
 
     // Function to observe changes in the user card container
     function observeUserCards() {
-        const targetNode = document.evaluate('//*[@id="__next"]/div[3]/div/div[2]/div[2]/div/div[2]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        let targetNode = document.evaluate('//*[@id="__next"]/div[3]/div/div[2]/div[2]/div/div[2]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
         if (!targetNode) targetNode = document.evaluate('//*[@id="__next"]/div[3]/div/div[2]/div[2]/div[1]/div[2]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+
+        if (!targetNode) return;
 
         const config = { childList: true, subtree: true };
         const callback = function(mutationsList, observer) {
